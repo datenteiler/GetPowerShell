@@ -1,0 +1,192 @@
+#!/usr/bin/env bash
+ 
+# -- ABOUT THIS PROGRAM: ------------------------------------------------------
+#
+# Author     :  Christian Imhorst
+# Version    :  1.0.0
+# Description:  Download and install the latest stable PowerShell for Linux
+#               or build a AppImage 
+# Source     :  
+#
+# -- INSTRUCTIONS: ------------------------------------------------------------
+#
+# Execute:
+#   $ chmod u+x GetPowerShell && ./GetPowerShell
+#
+# Options:
+#   -h, --help      output program instructions
+#   -v, --version   output program version
+#
+# Example:
+#   some example goes here
+#
+# Important:
+#   some important note goes here
+#
+# -- CHANGELOG: ---------------------------------------------------------------
+#
+#   DESCRIPTION:    First release
+#   VERSION    :    1.0.0
+#   DATE       :    10/16/2019
+#   AUTHOR     :    Christian Imhorst
+#
+# -- TODO & FIXES: ------------------------------------------------------------
+#
+#   - some FIX or TODO here
+#
+# -----------------------------------------------------------------------------
+ 
+# ------------------------------------------------------------------------------
+# | VARIABLES                                                                  |
+# ------------------------------------------------------------------------------
+ 
+VERSION="1.0.0"
+PROGRAM="GetPowerShell"
+ 
+# ------------------------------------------------------------------------------
+# | MAIN FUNCTIONS                                                             |
+# ------------------------------------------------------------------------------
+ 
+# Help text
+GetPowerShell_help() {
+ 
+cat <<EOF
+Usage: ./GetPowerShell [options]
+Example: ./GetPowerShell
+ 
+Options:
+    -h, --help      output program instructions
+    -v, --version   output program version 
+EOF
+}
+ 
+# Script Version
+GetPowerShell_version() {
+    echo "$PROGRAM: v$VERSION"
+}
+
+# Get PowerShell version
+GetPowerShell_latestver() {
+    VER=$(curl -s https://github.com/PowerShell/PowerShell/releases/latest)
+    PS_VER=$(echo $VER | egrep -o '[0-9].[0-9].[0-9]')
+    echo $PS_VER 
+}
+
+GetPowerShell_downloadPS() {
+    PSVER=$(GetPowerShell_latestver)
+    curl -L "https://github.com/PowerShell/PowerShell/releases/download/v$PSVER/powershell-$PSVER-linux-x64.tar.gz" -o powershell.tar.gz
+}
+
+GetPowerShell_install() {
+    GetPowerShell_downloadPS
+    get_root () {
+        installpath=/opt/powershell
+        mkdir -p $installpath
+        tar -xvf powershell.tar.gz -C $installpath 
+        ln -s $installpath/pwsh /usr/local/bin/pwsh
+        chmod +x $installpath/pwsh
+    }
+    export -f get_root
+    su -c 'get_root'
+}
+
+GetPowerShell_install_user() {
+    GetPowerShell_downloadPS
+    mkdir -p $1
+    tar -xvf powershell.tar.gz -C $1 
+    echo -e "\n# Path to PowerShell installation:\nexport PATH=\$PATH:$(pwd)/$1" >> $HOME/.bashrc
+    source $HOME/.bashrc
+}
+
+GetPowerShell_create_appimage() {
+    #GetPowerShell_downloadPS
+    mkdir -p $1/usr/bin
+    tar -xvf powershell.tar.gz -C $1/usr/bin
+
+    # Create a file AppDir/AppRun 
+    cat << EOF > $1/AppRun
+#!/bin/bash
+HERE=\$(dirname \$(readlink -f "\${0}"))
+export PATH="\${HERE}/usr/bin/":\$PATH
+exec "\${HERE}/usr/bin/pwsh" -nolog
+EOF
+
+# Make it executable: 
+chmod 755 $1/AppRun
+
+    cat << EOF > $1/powershell.desktop
+[Desktop Entry]
+Name=powershell
+Comment=Microsoft PowerShell
+Exec=pwsh
+Icon=powershell
+Type=Application
+Categories=TerminalEmulator;
+StartupNotify=true
+Terminal=true
+EOF
+
+cat << EOF > $1/powershell.svg
+<?xml version="1.0" encoding="utf-8"?>
+    <svg version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
+         width="128px" height="128px" viewBox="0 0 128 128" enable-background="new 0 0 128 128" xml:space="preserve">
+    <linearGradient id="SVGID_1_" gradientUnits="userSpaceOnUse" x1="95.1235" y1="91.8049" x2="26.855" y2="30.8249">
+        <stop  offset="0" style="stop-color:#5391FE"/>
+        <stop  offset="1" style="stop-color:#3E6DBF"/>
+    </linearGradient>
+    <path fill-rule="evenodd" clip-rule="evenodd" fill="url(#SVGID_1_)" d="M9.491,109c-1.62,0-3.021-0.638-3.944-1.798
+        c-0.944-1.185-1.268-2.814-0.889-4.47l17.834-77.911C23.239,21.557,26.376,19,29.634,19H118.5c1.62,0,3.021,0.638,3.945,1.798
+        c0.944,1.184,1.268,2.814,0.889,4.47l-17.834,77.911c-0.747,3.264-3.884,5.822-7.143,5.822H9.491z"/>
+    <linearGradient id="SVGID_2_" gradientUnits="userSpaceOnUse" x1="26.1775" y1="30.0146" x2="93.7485" y2="90.7381">
+        <stop  offset="0" style="stop-color:#5391FE"/>
+        <stop  offset="1" style="stop-color:#3E6DBF"/>
+    </linearGradient>
+    <path fill-rule="evenodd" clip-rule="evenodd" fill="url(#SVGID_2_)" d="M29.634,20H118.5c2.769,0,4.496,2.259,3.858,5.045
+        l-17.834,77.911c-0.638,2.786-3.399,5.045-6.168,5.045H9.491c-2.769,0-4.496-2.258-3.858-5.045l17.834-77.911
+        C24.104,22.259,26.866,20,29.634,20z"/>
+    <path fill-rule="evenodd" clip-rule="evenodd" fill="#2C5591" d="M64.165,87.558h21.613c2.513,0,4.55,2.125,4.55,4.746
+        c0,2.621-2.037,4.747-4.55,4.747H64.165c-2.513,0-4.55-2.125-4.55-4.747C59.615,89.683,61.652,87.558,64.165,87.558z"/>
+    <path fill-rule="evenodd" clip-rule="evenodd" fill="#2C5591" d="M78.184,66.455c-0.372,0.749-1.144,1.575-2.509,2.534
+        L35.562,97.798c-2.19,1.591-5.334,1.001-7.021-1.319c-1.687-2.32-1.28-5.49,0.91-7.082l36.173-26.194v-0.538L42.896,38.487
+        c-1.854-1.972-1.661-5.161,0.431-7.124c2.092-1.962,5.29-1.954,7.144,0.018l27.271,29.012C79.29,62.04,79.405,64.534,78.184,66.455z
+        "/>
+    <path fill-rule="evenodd" clip-rule="evenodd" fill="#FFFFFF" d="M77.184,65.455c-0.372,0.749-1.144,1.575-2.509,2.534
+        L34.562,96.798c-2.19,1.591-5.334,1.001-7.021-1.319c-1.687-2.32-1.28-5.49,0.91-7.082l36.173-26.194v-0.538L41.896,37.487
+        c-1.854-1.972-1.661-5.161,0.431-7.124c2.092-1.962,5.29-1.954,7.144,0.018l27.271,29.012C78.29,61.04,78.405,63.534,77.184,65.455z
+        "/>
+    <path fill-rule="evenodd" clip-rule="evenodd" fill="#FFFFFF" d="M63.55,87h21.613c2.513,0,4.55,2.015,4.55,4.5
+        c0,2.485-2.037,4.5-4.55,4.5H63.55C61.037,96,59,93.985,59,91.5C59,89.015,61.037,87,63.55,87z"/>
+    </svg>
+EOF
+    # Download the AppImage creation tool and make it executable:
+    if [ ! -f "appimagetool-x86_64.AppImage" ]; then
+            wget "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage"
+    fi
+    chmod a+x appimagetool-x86_64.AppImage
+    ARCH=x86_64 ./appimagetool-x86_64.AppImage $1
+}
+
+# ------------------------------------------------------------------------------
+# | RUN SCRIPT                                                                 |
+# ------------------------------------------------------------------------------
+
+options=$(getopt -o hvldiua: -l help,version,latest,download,install,install-user,appimage: -- "$@")
+if [ $? != 0 ] ; then echo "Terminating..." >&2 ; exit 1 ; fi
+
+set -- $options
+while [ $# -gt 0 ]
+do
+   case $1 in
+        -h|--help) GetPowerShell_help ${1}; exit;;
+        -v|--version) GetPowerShell_version ${1}; exit;;
+        -l|--latest) echo "Latest stable PowerShell version is: $(GetPowerShell_latestver ${1})"; exit;;
+        -d|--download) GetPowerShell_downloadPS ${1}; exit;;
+        -i|--install) GetPowerShell_install ${1}; exit;;
+        -u|--install-user) binpath="$2"; GetPowerShell_install_user ${2//\'/}; shift;;
+        -a|--appimage) appdir="$2"; GetPowerShell_create_appimage ${2//\'/}; shift;;
+        (--) shift; break;;
+        (-*) echo "$0: error - unrecognized option $1" 1>&2; exit 1;;
+        (*)  break;;
+    esac
+    shift
+done
