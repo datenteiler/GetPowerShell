@@ -5,8 +5,8 @@
 # Author     :  Christian Imhorst
 # Version    :  1.0.0
 # Description:  Download and install the latest stable PowerShell for Linux
-#               or build an AppImage 
-# Source     :  
+#               or build a AppImage 
+# Source     :  https://github.com/datenteiler/GetPowerShell/blob/master/GetPowerShell
 #
 # -- INSTRUCTIONS: ------------------------------------------------------------
 #
@@ -16,12 +16,6 @@
 # Options:
 #   -h, --help      output program instructions
 #   -v, --version   output program version
-#
-# Example:
-#   some example goes here
-#
-# Important:
-#   some important note goes here
 #
 # -- CHANGELOG: ---------------------------------------------------------------
 #
@@ -35,7 +29,6 @@
 #   - some FIX or TODO here
 #
 # -----------------------------------------------------------------------------
- 
 # ------------------------------------------------------------------------------
 # | VARIABLES                                                                  |
 # ------------------------------------------------------------------------------
@@ -52,11 +45,21 @@ GetPowerShell_help() {
  
 cat <<EOF
 Usage: ./GetPowerShell [options]
-Example: ./GetPowerShell
- 
+Example: Create AppImage
+    ./GetPowerShell -a
+Example: Install PowerShell for current user
+    ./GetPowerShell -u "bin/powershell"
+Example: Install PowerShell system-wide
+    ./GetPowerShell --install
+
 Options:
-    -h, --help      output program instructions
-    -v, --version   output program version 
+    -h, --help                  print this help
+    -v, --version               print script version 
+    -l, --latest                show latest PowerShell version
+    -d, --download              download latest PowerShell
+    -i, --install               install PowerShell system-wide
+    -a, --appimage              create an AppImage of latest PowerShell
+    -u, --install-user [path]   install PowerShell only for the current user in path
 EOF
 }
  
@@ -72,49 +75,63 @@ GetPowerShell_latestver() {
     echo $PS_VER 
 }
 
-GetPowerShell_downloadPS() {
+GetPowerShell_filename() {
     PSVER=$(GetPowerShell_latestver)
-    curl -L "https://github.com/PowerShell/PowerShell/releases/download/v$PSVER/powershell-$PSVER-linux-x64.tar.gz" -o powershell.tar.gz
+    echo "powershell_$PSVER.tar.gz"
 }
 
+# Download latest PowerShell version
+GetPowerShell_download() {
+    PSVER=$(GetPowerShell_latestver)
+    if [ ! -f $(GetPowerShell_filename) ]; then
+            curl -L "https://github.com/PowerShell/PowerShell/releases/download/v$PSVER/powershell-$PSVER-linux-x64.tar.gz" -o $(GetPowerShell_filename)
+    fi
+}
+
+# Install latest PowerShell in /opt/powershell
 GetPowerShell_install() {
-    GetPowerShell_downloadPS
+    GetPowerShell_download
+    # This has to be done as root:
     get_root () {
         installpath=/opt/powershell
         mkdir -p $installpath
-        tar -xvf powershell.tar.gz -C $installpath 
+        tar -xvf $1 -C $installpath
         ln -s $installpath/pwsh /usr/local/bin/pwsh
         chmod +x $installpath/pwsh
     }
     export -f get_root
-    su -c 'get_root'
+    su -c "get_root $(GetPowerShell_filename)"
 }
 
+# Install latest PowerShell for the current user
 GetPowerShell_install_user() {
-    GetPowerShell_downloadPS
     mkdir -p $1
-    tar -xvf powershell.tar.gz -C $1 
+    GetPowerShell_download
+    tar -xvf $(GetPowerShell_filename) -C $1 
     echo -e "\n# Path to PowerShell installation:\nexport PATH=\$PATH:$(pwd)/$1" >> $HOME/.bashrc
     source $HOME/.bashrc
 }
 
+# Download latest PowerShell and put it in an AppImage
 GetPowerShell_create_appimage() {
-    GetPowerShell_downloadPS
-    mkdir -p $1/usr/bin
-    tar -xvf powershell.tar.gz -C $1/usr/bin
+    GetPowerShell_download
+    PSVER=$(GetPowerShell_latestver)
+    appdir="powershell_$PSVER.AppDir"
+    mkdir -p $appdir/usr/bin
+    tar -xvf $(GetPowerShell_filename) -C $appdir/usr/bin
 
     # Create a file AppDir/AppRun 
-    cat << EOF > $1/AppRun
+    cat << EOF > $appdir/AppRun
 #!/bin/bash
 HERE=\$(dirname \$(readlink -f "\${0}"))
 export PATH="\${HERE}/usr/bin/":\$PATH
 exec "\${HERE}/usr/bin/pwsh" -nolog
 EOF
 
-# Make it executable: 
-chmod 755 $1/AppRun
+    # Make it executable: 
+    chmod 755 $appdir/AppRun
 
-    cat << EOF > $1/powershell.desktop
+    cat << EOF > $appdir/powershell.desktop
 [Desktop Entry]
 Name=powershell
 Comment=Microsoft PowerShell
@@ -126,7 +143,8 @@ StartupNotify=true
 Terminal=true
 EOF
 
-cat << EOF > $1/powershell.svg
+# Create a PowerShell logo in SVG
+    cat << EOF > $appdir/powershell.svg
 <?xml version="1.0" encoding="utf-8"?>
     <svg version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
          width="128px" height="128px" viewBox="0 0 128 128" enable-background="new 0 0 128 128" xml:space="preserve">
@@ -158,35 +176,41 @@ cat << EOF > $1/powershell.svg
         c0,2.485-2.037,4.5-4.55,4.5H63.55C61.037,96,59,93.985,59,91.5C59,89.015,61.037,87,63.55,87z"/>
     </svg>
 EOF
+
     # Download the AppImage creation tool and make it executable:
-    if [ ! -f "appimagetool-x86_64.AppImage" ]; then
-            wget "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage"
+    if [ ! -f "appimagetool" ]; then
+            curl -L "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage" -o appimagetool
     fi
-    chmod a+x appimagetool-x86_64.AppImage
-    ARCH=x86_64 ./appimagetool-x86_64.AppImage $1
+    chmod a+x appimagetool
+    
+    # Create the AppImage
+    ARCH=x86_64 ./appimagetool $appdir
 }
 
 # ------------------------------------------------------------------------------
 # | RUN SCRIPT                                                                 |
 # ------------------------------------------------------------------------------
 
-options=$(getopt -o hvldiua: -l help,version,latest,download,install,install-user,appimage: -- "$@")
-if [ $? != 0 ] ; then echo "Terminating..." >&2 ; exit 1 ; fi
+# cURL is needed for this script
+if [ ! -x "$(command -v curl)" ]; then echo 'Error: curl is not installed.' >&2; exit 1; fi
+
+# Parsing bash script options with getopt
+options=$(getopt -o hvldiu:a -l help,version,latest,download,install,install-user:,appimage -- "$@")
+if [ $? != 0 ] ; then echo "Terminating..." >&2; exit 1; fi
 
 set -- $options
 while [ $# -gt 0 ]
 do
    case $1 in
-        -h|--help) GetPowerShell_help ${1}; exit;;
-        -v|--version) GetPowerShell_version ${1}; exit;;
-        -l|--latest) echo "Latest stable PowerShell version is: $(GetPowerShell_latestver ${1})"; exit;;
-        -d|--download) GetPowerShell_downloadPS ${1}; exit;;
-        -i|--install) GetPowerShell_install ${1}; exit;;
-        -u|--install-user) binpath="$2"; GetPowerShell_install_user ${2//\'/}; shift;;
-        -a|--appimage) appdir="$2"; GetPowerShell_create_appimage ${2//\'/}; shift;;
+        -h|--help) GetPowerShell_help; exit;;
+        -v|--version) GetPowerShell_version; exit;;
+        -l|--latest) echo "Latest stable PowerShell version is: $(GetPowerShell_latestver)"; exit;;
+        -d|--download) GetPowerShell_download; exit;;
+        -i|--install) GetPowerShell_install; exit;;
+        -a|--appimage) GetPowerShell_create_appimage; exit;;
+        -u|--install-user) binpath="$2"; GetPowerShell_install_user ${2//\'/}; shift; exit;;
         (--) shift; break;;
         (-*) echo "$0: error - unrecognized option $1" 1>&2; exit 1;;
         (*)  break;;
     esac
-    shift
 done
