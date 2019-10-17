@@ -5,7 +5,7 @@
 # Author     :  Christian Imhorst
 # Version    :  1.0.0
 # Description:  Download and install the latest stable PowerShell for Linux
-#               or build a AppImage 
+#               or build an AppImage 
 # Source     :  
 #
 # -- INSTRUCTIONS: ------------------------------------------------------------
@@ -99,7 +99,7 @@ GetPowerShell_install_user() {
 }
 
 GetPowerShell_create_appimage() {
-    #GetPowerShell_downloadPS
+    GetPowerShell_downloadPS
     mkdir -p $1/usr/bin
     tar -xvf powershell.tar.gz -C $1/usr/bin
 
